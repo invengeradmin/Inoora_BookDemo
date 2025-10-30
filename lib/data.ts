@@ -54,4 +54,5 @@ export const countries = [
   "India",
   "Singapore",
   "Japan",
+  "Dubai",
 ]
