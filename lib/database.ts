@@ -704,41 +704,51 @@ export const updateDemoSession = async (
   updates: Partial<DemoSession>
 ) => {
   try {
-    // 🔧 Remove any accidental 'updated_at' from the update object
     const cleanUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([k]) => k !== "updated_at")
+      Object.entries(updates).filter(
+        ([k, v]) => v !== undefined && k !== "updated_at"
+      )
     )
 
-    const keys = Object.keys(cleanUpdates)
-    const values = Object.values(cleanUpdates)
-
-    if (keys.length === 0) {
+    if (Object.keys(cleanUpdates).length === 0) {
       throw new Error("No valid fields provided for update")
     }
 
+    const keys = Object.keys(cleanUpdates)
+    const values = Object.values(cleanUpdates)
     const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ")
+
     const sql = `
-      UPDATE demo_sessions 
+      UPDATE demo_sessions
       SET ${setClause}, updated_at = NOW()
       WHERE id = $${keys.length + 1}
       RETURNING *
     `
     const result = await query(sql, [...values, sessionId])
-    return serialize(result.rows[0])
-  } catch (error) {
-    console.error("Error updating demo session:", getReason(error))
-    throw error
+
+    // ✅ deep-clone to remove prototypes, Dates, etc.
+    const safe = JSON.parse(JSON.stringify(result?.rows?.[0] ?? {}))
+    return safe
+  } catch (error: any) {
+    console.error("Error updating demo session:", error)
+    throw new Error(
+      `Failed to update demo session: ${error?.message || "Unknown error"}`
+    )
   }
 }
 
-export const deleteDemoSession = async (sessionId: string) => {
+export async function deleteDemoSession(id: string) {
   try {
-    await query(`DELETE FROM demo_sessions WHERE id = $1`, [sessionId])
-  } catch (error) {
-    console.error("Error deleting demo session:", getReason(error))
-    throw error
+    const res = await query("DELETE FROM demo_sessions WHERE id=$1 RETURNING *", [id]);
+    // ✅ Convert to plain object
+    const deleted = res.rows[0] ? { ...res.rows[0] } : null;
+    return JSON.parse(JSON.stringify(deleted));  // makes it fully serializable
+  } catch (err) {
+    console.error("Error deleting demo session:", err);
+    throw new Error(`Failed to delete demo session: ${err.message}`);
   }
 }
+
 
 export const assignAgentToSession = async (sessionId: string, agentId: string) => {
   try {
@@ -832,30 +842,38 @@ export const deleteAgent = async (agentId: string) => {
 // ---------------------- BLOCKED SLOTS ----------------------
 export const getBlockedSlots = async () => {
   try {
-    const result = await query(
-      `SELECT * FROM blocked_slots ORDER BY date ASC, time ASC`
-    )
-    return serialize(result.rows)
+    const result = await query(`
+      SELECT id, date, time, reason, created_at
+      FROM blocked_slots
+      ORDER BY date ASC, time ASC
+    `)
+    // ✅ Serialize to plain JSON
+    return JSON.parse(JSON.stringify(result.rows))
   } catch (error: any) {
-    if (error.code === "42P01") {
-      console.warn("blocked_slots table does not exist")
-      return []
-    }
-    console.error("Error getting blocked slots:", getReason(error))
+    console.error("Error getting blocked slots:", error)
     return []
   }
 }
 
+
+
 export const blockSlot = async (slotData: { date: string; time: string; reason?: string }) => {
   try {
     const result = await query(
-      `INSERT INTO blocked_slots (date, time, reason) VALUES ($1, $2, $3) RETURNING *`,
+      `
+      INSERT INTO blocked_slots (date, time, reason)
+      VALUES ($1, $2, $3)
+      RETURNING id, date, time, reason, created_at
+      `,
       [slotData.date, slotData.time, slotData.reason || null]
     )
-    return serialize(result.rows[0])
-  } catch (error) {
-    console.error("Error blocking slot:", getReason(error))
-    throw error
+
+    // ✅ Convert to safe plain object
+    const safe = JSON.parse(JSON.stringify(result.rows[0] ?? {}))
+    return safe
+  } catch (error: any) {
+    console.error("Error blocking slot:", error)
+    throw new Error(`Failed to block slot: ${error.message}`)
   }
 }
 
@@ -921,3 +939,5 @@ export const logEmail = async (emailData: {
     console.error("Error logging email:", getReason(error))
   }
 }
+export { query }
+

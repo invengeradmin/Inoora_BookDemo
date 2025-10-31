@@ -9,36 +9,20 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Ban, CalendarIcon, Clock, Trash2, Plus, CheckCircle, AlertCircle } from "lucide-react"
-import { getBlockedSlots, blockSlot, unblockSlot } from "@/lib/database"
 
 interface BlockedSlot {
   id: string
   date: string
   time: string
   reason?: string
-  blocked_by: string
+  blocked_by?: string
   created_at: string
 }
 
 const timeSlots = [
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-  "17:00",
-  "17:30",
+  "09:00","09:30","10:00","10:30","11:00","11:30",
+  "12:00","12:30","13:00","13:30","14:00","14:30",
+  "15:00","15:30","16:00","16:30","17:00","17:30"
 ]
 
 interface SlotBlockingProps {
@@ -57,12 +41,15 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
     loadBlockedSlots()
   }, [])
 
+  // ✅ Use API routes instead of server imports
   const loadBlockedSlots = async () => {
     try {
-      const slots = await getBlockedSlots()
-      setBlockedSlots(slots || [])
+      const res = await fetch("/api/slots", { cache: "no-store" })
+      if (!res.ok) throw new Error("Failed to load slots")
+      const data = await res.json()
+      setBlockedSlots(data)
     } catch (error) {
-      console.error("Failed to load blocked slots:", error)
+      console.error("Error getting blocked slots:", error)
     }
   }
 
@@ -72,29 +59,29 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
       return
     }
 
+    const dateStr = selectedDate.toISOString().split("T")[0]
+    const existingBlock = blockedSlots.find((s) => s.date === dateStr && s.time === selectedTime)
+    if (existingBlock) {
+      setMessage({ type: "error", text: "This slot is already blocked" })
+      return
+    }
+
     try {
       setIsLoading(true)
-      setMessage(null)
-
-      const dateStr = selectedDate.toISOString().split("T")[0]
-
-      // Check if slot is already blocked
-      const existingBlock = blockedSlots.find((slot) => slot.date === dateStr && slot.time === selectedTime)
-
-      if (existingBlock) {
-        setMessage({ type: "error", text: "This slot is already blocked" })
-        return
-      }
-
-      await blockSlot({
-        date: dateStr,
-        time: selectedTime,
-        reason: reason || "Blocked by admin",
+      const res = await fetch("/api/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: dateStr,
+          time: selectedTime,
+          reason: reason || "Blocked by admin",
+        }),
       })
 
+      if (!res.ok) throw new Error("Failed to block slot")
       setMessage({ type: "success", text: "Slot blocked successfully!" })
-      setSelectedTime("")
       setReason("")
+      setSelectedTime("")
       await loadBlockedSlots()
       onRefresh()
     } catch (error) {
@@ -105,12 +92,11 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
     }
   }
 
-  const handleUnblockSlot = async (slotId: string) => {
+  const handleUnblockSlot = async (id: string) => {
     try {
       setIsLoading(true)
-      setMessage(null)
-
-      await unblockSlot(slotId)
+      const res = await fetch(`/api/slots/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to unblock slot")
       setMessage({ type: "success", text: "Slot unblocked successfully!" })
       await loadBlockedSlots()
       onRefresh()
@@ -124,13 +110,13 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
 
   const getBlockedSlotsForDate = (date: Date) => {
     const dateStr = date.toISOString().split("T")[0]
-    return blockedSlots.filter((slot) => slot.date === dateStr)
+    return blockedSlots.filter((s) => s.date === dateStr)
   }
 
   const isSlotBlocked = (time: string) => {
     if (!selectedDate) return false
     const dateStr = selectedDate.toISOString().split("T")[0]
-    return blockedSlots.some((slot) => slot.date === dateStr && slot.time === time)
+    return blockedSlots.some((s) => s.date === dateStr && s.time === time)
   }
 
   return (
@@ -176,7 +162,7 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
           </CardContent>
         </Card>
 
-        {/* Time Selection & Block */}
+        {/* Block Slot */}
         <Card className="border-0 shadow-xl bg-white/10 backdrop-blur-sm border-white/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
@@ -201,8 +187,8 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
                           selectedTime === time
                             ? "bg-gradient-to-r from-purple-600 to-blue-600"
                             : isSlotBlocked(time)
-                              ? "bg-red-500/20 border-red-500/50 text-red-300 cursor-not-allowed"
-                              : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                            ? "bg-red-500/20 border-red-500/50 text-red-300 cursor-not-allowed"
+                            : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                         }`}
                       >
                         {time}
@@ -212,9 +198,7 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="reason" className="text-white">
-                    Reason (Optional)
-                  </Label>
+                  <Label htmlFor="reason" className="text-white">Reason (Optional)</Label>
                   <Input
                     id="reason"
                     value={reason}
@@ -246,7 +230,7 @@ export function SlotBlocking({ onRefresh }: SlotBlockingProps) {
           </CardContent>
         </Card>
 
-        {/* Blocked Slots for Selected Date */}
+        {/* Blocked Slots (per date) */}
         <Card className="border-0 shadow-xl bg-white/10 backdrop-blur-sm border-white/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">

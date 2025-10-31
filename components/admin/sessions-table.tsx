@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Label } from "@/components/ui/label"
@@ -72,6 +72,7 @@ export function SessionsTable({
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [isAssigning, setIsAssigning] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+const [isDeleting, setIsDeleting] = useState(false)
 
   const [emailData, setEmailData] = useState({
     subject: "",
@@ -103,21 +104,32 @@ export function SessionsTable({
     return statusOption?.label || status
   }
 
-  const handleUpdateSession = async (sessionId: string, updates: Partial<DemoSession>) => {
-    try {
-      setIsUpdating(true)
-      setMessage(null)
-      await updateDemoSession(sessionId, updates)
-      setMessage({ type: "success", text: "Session updated successfully!" })
-      onSessionUpdate()
-      setEditingSession(null)
-    } catch (error) {
-      console.error("Failed to update session:", error)
-      setMessage({ type: "error", text: "Failed to update session" })
-    } finally {
-      setIsUpdating(false)
-    }
+ const handleUpdateSession = async (sessionId: string, updates: Partial<DemoSession>) => {
+  try {
+    setIsUpdating(true)
+    setMessage(null)
+
+    // ✅ Call the API route instead of importing server code
+    const response = await fetch("/api/sessions/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, updates }),
+    })
+
+    if (!response.ok) throw new Error("Failed to update session")
+
+    const updated = await response.json()
+
+    setMessage({ type: "success", text: "Session updated successfully!" })
+    onSessionUpdate()
+    setEditingSession(null)
+  } catch (error) {
+    console.error("Failed to update session:", error)
+    setMessage({ type: "error", text: "Failed to update session" })
+  } finally {
+    setIsUpdating(false)
   }
+}
 
  const handleAssignAgent = async () => {
   if (!assigningSession || !selectedAgentId) return
@@ -136,12 +148,23 @@ export function SessionsTable({
     })
 
     const data = await res.json()
-
     if (!data.success) throw new Error(data.message || "Failed to assign agent")
+
+    // ✅ Update the local UI instantly
+    const updatedSession = data.session
+    const assignedAgent = agents.find((a) => a.id === selectedAgentId)
+
+    // update the local sessions array to reflect assigned agent
+    sessions.forEach((s) => {
+      if (s.id === updatedSession.id) {
+        s.agent_id = selectedAgentId
+        s.agent = assignedAgent ? { ...assignedAgent } : null
+      }
+    })
 
     setMessage({ type: "success", text: "Agent assigned successfully!" })
 
-    // 🔄 Ensure data reloads after assignment
+    // Optionally trigger refresh for consistency
     await onSessionUpdate()
     await onRefresh?.()
 
@@ -155,19 +178,34 @@ export function SessionsTable({
     setIsAssigning(false)
   }
 }
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm("Are you sure you want to delete this session?")) return
 
-    try {
-      setMessage(null)
-      await deleteDemoSession(sessionId)
-      setMessage({ type: "success", text: "Session deleted successfully!" })
-      onSessionUpdate()
-    } catch (error) {
-      console.error("Failed to delete session:", error)
-      setMessage({ type: "error", text: "Failed to delete session" })
-    }
+const handleDeleteSession = async (sessionId: string) => {
+  try {
+    setIsDeleting(true)
+    setMessage(null)
+
+    // ✅ use API route instead of direct DB call
+    const response = await fetch("/api/sessions/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    })
+
+    if (!response.ok) throw new Error("Failed to delete session")
+
+    const result = await response.json()
+    if (!result.success) throw new Error(result.message || "Delete failed")
+
+    setMessage({ type: "success", text: "Session deleted successfully!" })
+    onSessionUpdate()
+  } catch (error) {
+    console.error("Failed to delete session:", error)
+    setMessage({ type: "error", text: "Failed to delete session" })
+  } finally {
+    setIsDeleting(false)
   }
+}
+
 
   const handleSendEmail = async () => {
     if (!emailingSession || !currentAgent) return
@@ -508,19 +546,24 @@ ${currentAgent?.name || "Your Inoora Team"}`,
                       Edit
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Edit Session: {session.id}</DialogTitle>
-                    </DialogHeader>
-                    {editingSession && (
-                      <SessionEditForm
-                        session={editingSession}
-                        onUpdate={handleUpdateSession}
-                        isUpdating={isUpdating}
-                        onCancel={() => setEditingSession(null)}
-                      />
-                    )}
-                  </DialogContent>
+                 <DialogContent className="max-w-2xl">
+  <DialogHeader>
+    <DialogTitle>Edit Session: {session.id}</DialogTitle>
+    <DialogDescription className="sr-only">
+      Update session details and save changes.
+    </DialogDescription>
+  </DialogHeader>
+
+  {editingSession && (
+    <SessionEditForm
+      session={editingSession}
+      onUpdate={handleUpdateSession}
+      isUpdating={isUpdating}
+      onCancel={() => setEditingSession(null)}
+    />
+  )}
+</DialogContent>
+
                 </Dialog>
 
                 {isSuper && (

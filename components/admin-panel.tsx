@@ -311,10 +311,82 @@ export function AdminPanel({ sessions, onUpdateSession, onDeleteSession }: Admin
 
 function SessionEditForm({ session, onUpdate }: { session: Session; onUpdate: (updates: Partial<Session>) => void }) {
   const [status, setStatus] = useState(session.status)
+function SessionEditForm({
+  session,
+  onUpdate,
+}: {
+  session: Session
+  onUpdate: (sessionId: string, updates: Partial<Session>) => void
+}) {
+  const [status, setStatus] = useState(session.status)
+
+ function SessionEditForm({
+  session,
+  onUpdate,
+}: {
+  session: Session
+  onUpdate: (sessionId: string, updates: Partial<Session>) => void
+}) {
+  const [status, setStatus] = useState(session.status)
 
   const handleSave = () => {
-    onUpdate({ status, updatedAt: new Date() })
+    onUpdate(session.id, { status, updatedAt: new Date() })
   }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <label className="text-sm font-semibold text-gray-700">Session Status</label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="h-12">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="confirmed">✅ Confirmed</SelectItem>
+            <SelectItem value="cancelled">❌ Cancelled</SelectItem>
+            <SelectItem value="rescheduled">📅 Rescheduled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        onClick={handleSave}
+        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+        size="lg"
+      >
+        Save Changes
+      </Button>
+    </div>
+  )
+}
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <label className="text-sm font-semibold text-gray-700">Session Status</label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="h-12">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="confirmed">✅ Confirmed</SelectItem>
+            <SelectItem value="cancelled">❌ Cancelled</SelectItem>
+            <SelectItem value="rescheduled">📅 Rescheduled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        onClick={handleSave}
+        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+        size="lg"
+      >
+        Save Changes
+      </Button>
+    </div>
+  )
+}
+
 
   return (
     <div className="space-y-6">
