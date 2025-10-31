@@ -5,12 +5,9 @@ export async function POST(req: Request) {
   try {
     const data = await req.json()
     const saved = await saveDemoSession(data)
-    return NextResponse.json({
-      success: true,
-      data: JSON.parse(JSON.stringify(saved)), // ✅ make serializable
-    })
+    return NextResponse.json({ success: true, data: saved })
   } catch (error: any) {
     console.error("API save-demo-session error:", error)
-    return NextResponse.json({ success: false, message: String(error) }, { status: 500 })
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 })
   }
 }

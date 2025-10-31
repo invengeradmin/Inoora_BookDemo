@@ -56,23 +56,45 @@ async function handleContactSupport(sessionId: string) {
   try {
     console.log("🟣 Starting demo confirmation...")
     setIsBooking(true)
-
-    // Optional visual delay
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
     const newSessionId = generateSessionId()
     setSessionId(newSessionId)
 
-    const session: Session = {
+    // ✅ Save demo session in DB
+    const sessionPayload = {
       id: newSessionId,
-      bookingDetails,
+      agent_id: null,
+      customer_name: bookingDetails.name,
+      customer_email: bookingDetails.email,
+      customer_phone: bookingDetails.phone,
+      customer_country: bookingDetails.country,
+      customer_company: bookingDetails.company,
+      demo_date: bookingDetails.date
+        ? new Date(bookingDetails.date).toISOString().split("T")[0]
+        : null,
+      demo_time: bookingDetails.time,
+      duration: 30,
       status: "confirmed",
-      createdAt: new Date(),
-      updatedAt: new Date(),
     }
 
-    console.log("🟢 Generated session:", session)
+    console.log("🟢 Saving session to DB:", sessionPayload)
+    const saveRes = await fetch("/api/save-demo-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionPayload),
+    })
 
+    const saveResult = await saveRes.json()
+    if (!saveResult.success) {
+      console.error("❌ DB insert failed:", saveResult.message)
+      alert("Failed to save your session. Please try again.")
+      return
+    }
+
+    console.log("✅ Session saved to DB:", saveResult.data)
+
+    // ✅ Now send confirmation email
     const emailResult = await sendConfirmationEmail(newSessionId, bookingDetails)
     console.log("📧 Email send result:", emailResult)
 

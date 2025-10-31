@@ -33,22 +33,42 @@ export default function AdminDashboard({ initialSessions, initialAgents }: Props
 
   const checkAuth = async () => {
     try {
-      const agent = await getCurrentAgent()
-      if (!agent) {
-        router.push("/demoadmin/login")
-        return
-      }
-      setCurrentAgent(agent)
+       const agent = await getCurrentAgent()
+  if (!agent) {
+    router.push("/demoadmin/login")
+    return
+  }
+  setCurrentAgent(agent)
     } catch (error) {
       console.error("Auth check failed:", error)
       router.push("/demoadmin/login")
     }
   }
+const handleRefresh = async () => {
+  setIsRefreshing(true)
+  try {
+    const [sessionsRes, agentsRes] = await Promise.all([
+      fetch("/api/sessions", { cache: "no-store" }),
+      fetch("/api/agents", { cache: "no-store" }),
+    ])
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    location.reload() // reload triggers server re-fetch
+    if (!sessionsRes.ok || !agentsRes.ok) {
+      throw new Error("Failed to fetch data")
+    }
+
+    const [sessionsData, agentsData] = await Promise.all([
+      sessionsRes.json(),
+      agentsRes.json(),
+    ])
+
+    setSessions(sessionsData)
+    setAgents(agentsData)
+  } catch (error) {
+    console.error("Refresh failed:", error)
+  } finally {
+    setIsRefreshing(false)
   }
+}
 
   const handleSignOut = async () => {
     try {

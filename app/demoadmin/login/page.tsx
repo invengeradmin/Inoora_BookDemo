@@ -10,9 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react"
-import { signInAgent } from "@/lib/auth"
 import Image from "next/image"
-
 export default function AdminLogin() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -21,27 +19,37 @@ export default function AdminLogin() {
   const [error, setError] = useState("")
   const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
+ const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setIsLoading(true)
+  setError("")
 
-    try {
-      const result = await signInAgent(email, password)
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
 
-      // Store agent email in session storage for demo purposes
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("agent_email", email)
-      }
-
-      router.push("/demoadmin")
-    } catch (error: any) {
-      setError(error.message || "Login failed")
-    } finally {
-      setIsLoading(false)
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.error || "Login failed")
     }
-  }
 
+    // Save agent info in sessionStorage
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("agent_email", data.agent.email)
+      sessionStorage.setItem("agent_role", data.agent.role)
+      sessionStorage.setItem("agent_name", data.agent.name)
+    }
+
+    router.push("/demoadmin")
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setIsLoading(false)
+  }
+}
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
